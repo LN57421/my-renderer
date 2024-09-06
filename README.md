@@ -1,15 +1,20 @@
 # my-renderer
 
-This is a simple renderer that I am writing to learn about computer graphics.
+零依赖软渲染器，项目不依赖任何`第三方库`，所有计算都是在`CPU`侧进行的
 
-## Building
+## 项目特征
+
+- [x] 三角形光栅化
+
+
+## 构建项目
 GCC 13.2.0 is required to build this project. To build the project, run the following command in the root directory of the project:
     
 
     make
     
 
-## Running
+## 项目运行
 
 To run the project, run the following command in the root directory of the project:
 

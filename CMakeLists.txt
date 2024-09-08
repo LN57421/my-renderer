@@ -34,6 +34,10 @@ link_directories(lib)
 # 添加自定义构建和运行命令
 add_custom_target(run
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target main
+    # g++ -ggdb -g -pg -O0 keys
+    # COMMAND -ggdb -g -pg -O0
+    # -O2
+    # COMMAND -O2
     COMMAND ${CMAKE_BINARY_DIR}/main
     DEPENDS main
     COMMENT "Building and running..."

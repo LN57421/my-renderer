@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     std::cout << "Average execution time: " << (elapsed.count()) << " seconds" << std::endl;
 
     image.flip_vertically();
-    image.write_tga_file("output.tga");
+    image.write_tga_file("output/output.tga");
     return 0;
 }
 

@@ -15,8 +15,8 @@
 
 - [x] `draw_lines.cpp`: Bresenham 画线算法
 - [x] `draw_triangle.cpp`: 一个画空心三角形算法，两个实心三角形算法
-- [x] 'wireframe_rendering.cpp': 读取OBJ模型数据，画出模型线框
-- [x] 'backface_culling.cpp': 实现Lambertian漫反射和backface culling，剔除背面三角形
+- [x] `wireframe_rendering.cpp`: 读取OBJ模型数据，画出模型线框
+- [x] `backface_culling.cpp`: 实现Lambertian漫反射和backface culling，剔除背面三角形
 
 ## 3. 构建与运行
 

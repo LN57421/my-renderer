@@ -4,15 +4,19 @@
 
 ## 1. 项目特征
 
-- [ ] 
-- [ ] 
+- [x] 利用画点API，采用Bresenham画线算法，画出直线
+- [x] 实现OBJ模型数据读取，画出模型线框 
+- [x] 利用画线API，利用线性插值因子，实现画实心三角形
+- [x] 根据数据画出模型三角形面，实现Lambertian漫反射和backface culling，以剔除背面三角形
 
 ## 2. 项目架构
 
 为了方便后续学习，特别将一些关键算法的实现放于test文件夹下:
 
-- [ ] `draw_lines.cpp`: Bresenham 画线算法
-
+- [x] `draw_lines.cpp`: Bresenham 画线算法
+- [x] `draw_triangle.cpp`: 一个画空心三角形算法，两个实心三角形算法
+- [x] 'wireframe_rendering.cpp': 读取OBJ模型数据，画出模型线框
+- [x] 'backface_culling.cpp': 实现Lambertian漫反射和backface culling，剔除背面三角形
 
 ## 3. 构建与运行
 

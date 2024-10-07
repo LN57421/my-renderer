@@ -6,3 +6,9 @@ tinyrenderer/
 
 # output files
 output/
+
+# ./vscode
+.vscode/
+
+# output files
+output.tga

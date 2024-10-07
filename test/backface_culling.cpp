@@ -109,8 +109,7 @@ int main(int argc, char **argv) {
             world_coords[j] = v;                                 // world
         }
         // 用世界坐标计算法向量
-        Vec3f n = (world_coords[2] - world_coords[0]) ^
-                  (world_coords[1] - world_coords[0]);
+        Vec3f n = cross(world_coords[2] - world_coords[0], world_coords[1] - world_coords[0]);
         n.normalize();
         float intensity = n * light_dir;  // 光照强度=法向量*光照方向
                                           // 即法向量和光照方向重合时，亮度最高

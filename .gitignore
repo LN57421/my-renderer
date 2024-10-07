@@ -3,6 +3,7 @@ build/
 
 # tinyrenderer
 tinyrenderer/
+tinyrenderer_notes/
 
 # output files
 output/

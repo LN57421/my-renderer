@@ -55,7 +55,19 @@
 - `perspective_projection.cpp`: 实现透视投影变换，将3D场景投射到2D屏幕上。
 - `wireframe_rendering.cpp`: 实现线框渲染模式，渲染模型时仅显示其边框而不填充。
 
-## 3. 构建与运行
+## 3. 项目Pipline
+
+//图片
+![项目实现pipeline](showcase_images/pipeline.png)
+
+## 4. 项目效果
+
+![Gouraud_Shading_Texture](showcase_images/Gouraud_Shading_Texture.png)
+
+![z-buffer](showcase_images/z-buffer.png)
+
+
+## 5. 构建与运行
 本项目使用Windows下使用VSCode + MinGW-w64 + CMake开发
 
 要构建本项目，请在**项目的根目录**中运行以下命令，项目会自动进行构建，并将bulid文件放在根目录下面：
@@ -77,7 +89,7 @@ cmake --build build --config Release
 ./output/main.exe
 ```
 
-## 4. 参考
+## 6. 参考
 
 [在Windows下利用VScode从零配置MinGW-w64](https://zhuanlan.zhihu.com/p/610895870)
 

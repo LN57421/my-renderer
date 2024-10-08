@@ -44,7 +44,8 @@ Matrix lookat(Vec3f eye, Vec3f center, Vec3f up) {
 }
 
 void triangle(Vec3i t0, Vec3i t1, Vec3i t2, float ity0, float ity1, float ity2,
-              TGAImage &image, int *zbuffer) {
+              Vec2i uv0, Vec2i uv1, Vec2i uv2, TGAImage &image,
+              int *zbuffer) {
     if (t0.y == t1.y && t0.y == t2.y)
         return;  // i dont care about degenerate triangles
     if (t0.y > t1.y) {
@@ -74,20 +75,34 @@ void triangle(Vec3i t0, Vec3i t1, Vec3i t2, float ity0, float ity1, float ity2,
         float ityA = ity0 + (ity2 - ity0) * alpha;
         float ityB = second_half ? ity1 + (ity2 - ity1) * beta
                                  : ity0 + (ity1 - ity0) * beta;
+
+        Vec2i uvA = uv0 + (uv2 - uv0) * alpha;
+        Vec2i uvB =
+            second_half ? uv1 + (uv2 - uv1) * beta : uv0 + (uv1 - uv0) * beta;
+
         if (A.x > B.x) {
             std::swap(A, B);
             std::swap(ityA, ityB);
         }
+
+
         for (int j = A.x; j <= B.x; j++) {
             float phi = B.x == A.x ? 1. : (float)(j - A.x) / (B.x - A.x);
             Vec3i P = Vec3f(A) + Vec3f(B - A) * phi;
+            Vec2i uvP = uvA + (uvB - uvA) * phi;
+
             float ityP = ityA + (ityB - ityA) * phi;
             int idx = P.x + P.y * width;
+
             if (P.x >= width || P.y >= height || P.x < 0 || P.y < 0)
                 continue;
+            
             if (zbuffer[idx] < P.z) {
                 zbuffer[idx] = P.z;
-                image.set(P.x, P.y, TGAColor(255, 255, 255) * ityP);
+                TGAColor color = model->diffuse(uvP);
+                image.set(P.x, P.y,
+                          TGAColor(color.bgra[2] * ityP, color.bgra[1] * ityP,
+                                   color.bgra[0] * ityP));
             }
         }
     }
@@ -129,10 +144,15 @@ int main(int argc, char **argv) {
                 screen_coords[j] =
                     Vec3f(ViewPort * Projection * ModelView * Matrix(v));
                 world_coords[j] = v;
-                intensity[j] = model->norm(i, j) * light_dir;
+                intensity[j] = std::max(0.f, model->norm(i, j) * light_dir); // the 0 is a hack
+            }
+            Vec2i uv[3];
+            for (int k = 0; k < 3; k++) {
+                uv[k] = model->uv(i, k);
             }
             triangle(screen_coords[0], screen_coords[1], screen_coords[2],
-                     intensity[0], intensity[1], intensity[2], image, zbuffer);
+                     intensity[0], intensity[1], intensity[2], uv[0], uv[1],
+                     uv[2], image, zbuffer);
         }
         image.flip_vertically();  // i want to have the origin at the left
                                   // bottom corner of the image

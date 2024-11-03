@@ -1,106 +1,104 @@
 #include "our_gl.h"
 
-// 全局矩阵，用于存储模型视图、视口和投影矩阵
-mat<4, 4> ModelView;
-mat<4, 4> Viewport;
-mat<4, 4> Projection;
+#include <cmath>
+#include <cstdlib>
+#include <limits>
 
-// 定义视口矩阵，将模型坐标转换为屏幕坐标
-void viewport(const int x, const int y, const int w, const int h) {
-    Viewport = {{{w / 2., 0, 0, x + w / 2.},
-                 {0, h / 2., 0, y + h / 2.},
-                 {0, 0, 1, 0},
-                 {0, 0, 0, 1}}};
+// 全局矩阵，用于模型视图、视口和投影变换
+Matrix ModelView;
+Matrix Viewport;
+Matrix Projection;
+
+// 虚析构函数，为接口 `IShader` 提供一个析构函数
+IShader::~IShader() {}
+
+// 设置视口变换矩阵
+// (x, y) 是视口的左下角坐标，(w, h) 是视口的宽度和高度
+void viewport(int x, int y, int w, int h) {
+    Viewport = Matrix::identity();
+    Viewport[0][3] = x + w / 2.f;
+    Viewport[1][3] = y + h / 2.f;
+    Viewport[2][3] = depth / 2.f;
+    Viewport[0][0] = w / 2.f;
+    Viewport[1][1] = h / 2.f;
+    Viewport[2][2] = depth / 2.f;
 }
 
-// 定义投影矩阵，实现透视投影
-void projection(
-    const double f) {  // 参考：https://en.wikipedia.org/wiki/Camera_matrix
-    Projection = {
-        {{1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 1, 0}, {0, 0, -1 / f, 0}}};
+// 设置投影矩阵
+// coeff 是投影参数，通常用于透视投影
+void projection(float coeff) {
+    Projection = Matrix::identity();
+    Projection[3][2] = coeff;
 }
 
-// 定义模型视图矩阵，基于相机位置、目标位置和上方向设置相机视角
-void lookat(
-    const vec3 eye, const vec3 center,
-    const vec3
-        up) {  // 参考：https://github.com/ssloy/tinyrenderer/wiki/Lesson-5-Moving-the-camera
-    vec3 z = (center - eye).normalized();  // 计算相机的前向向量
-    vec3 x = cross(up, z).normalized();    // 计算相机的右向向量
-    vec3 y = cross(z, x).normalized();     // 计算相机的上向向量
-    // 定义旋转矩阵 Minv
-    mat<4, 4> Minv = {{{x.x, x.y, x.z, 0},
-                       {y.x, y.y, y.z, 0},
-                       {z.x, z.y, z.z, 0},
-                       {0, 0, 0, 1}}};
-    // 定义平移矩阵 Tr
-    mat<4, 4> Tr = {{{1, 0, 0, -eye.x},
-                     {0, 1, 0, -eye.y},
-                     {0, 0, 1, -eye.z},
-                     {0, 0, 0, 1}}};
-    ModelView = Minv * Tr;  // 组合得到模型视图矩阵
+// 设置模型视图矩阵
+// eye 是相机位置，center 是观察目标点，up 是相机的上方向
+void lookat(Vec3f eye, Vec3f center, Vec3f up) {
+    Vec3f z = (eye - center).normalize();
+    Vec3f x = cross(up, z).normalize();
+    Vec3f y = cross(z, x).normalize();
+    ModelView = Matrix::identity();
+    for (int i = 0; i < 3; i++) {
+        ModelView[0][i] = x[i];
+        ModelView[1][i] = y[i];
+        ModelView[2][i] = z[i];
+        ModelView[i][3] = -center[i];
+    }
 }
 
-// 计算给定点 P 在三角形 tri 中的重心坐标
-vec3 barycentric(const vec2 tri[3], const vec2 P) {
-    mat<3, 3> ABC = {{embed<3>(tri[0]), embed<3>(tri[1]), embed<3>(tri[2])}};
-    if (ABC.det() < 1e-3)
-        return {-1, 1, 1};  // 如果三角形退化，生成负坐标，使其被光栅化器丢弃
-    return ABC.invert_transpose() * embed<3>(P);
+// 计算重心坐标
+// A, B, C 是三角形的三个顶点，P 是目标点
+Vec3f barycentric(Vec2f A, Vec2f B, Vec2f C, Vec2f P) {
+    Vec3f s[2];
+    for (int i = 2; i--;) {
+        s[i][0] = C[i] - A[i];
+        s[i][1] = B[i] - A[i];
+        s[i][2] = A[i] - P[i];
+    }
+    Vec3f u = cross(s[0], s[1]);
+    // 如果 u[2] 不为 0，则返回重心坐标，否则三角形退化，返回负坐标
+    if (std::abs(u[2]) > 1e-2)
+        return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+    return Vec3f(-1, 1, 1);
 }
 
-// 渲染三角形，将其逐像素填充到图像中，并更新深度缓冲
-void triangle(const vec4 clip_verts[3], IShader &shader, TGAImage &image,
-              std::vector<double> &zbuffer) {
-    // 将三角形顶点转换为屏幕坐标（在透视除法之前）
-    vec4 pts[3] = {Viewport * clip_verts[0], Viewport * clip_verts[1],
-                   Viewport * clip_verts[2]};
-    // 透视除法之后的屏幕坐标
-    vec2 pts2[3] = {proj<2>(pts[0] / pts[0][3]), proj<2>(pts[1] / pts[1][3]),
-                    proj<2>(pts[2] / pts[2][3])};
-
+// 绘制三角形
+// pts 是三角形的三个顶点，shader 是使用的着色器，image 是目标图像，zbuffer
+// 是深度缓冲区
+void triangle(Vec4f *pts, IShader &shader, TGAImage &image, float *zbuffer) {
     // 计算三角形的包围盒
-    int bboxmin[2] = {image.width() - 1, image.height() - 1};
-    int bboxmax[2] = {0, 0};
+    Vec2f bboxmin(std::numeric_limits<float>::max(),
+                  std::numeric_limits<float>::max());
+    Vec2f bboxmax(-std::numeric_limits<float>::max(),
+                  -std::numeric_limits<float>::max());
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 2; j++) {
-            bboxmin[j] = std::min(bboxmin[j], static_cast<int>(pts2[i][j]));
-            bboxmax[j] = std::max(bboxmax[j], static_cast<int>(pts2[i][j]));
+            bboxmin[j] = std::min(bboxmin[j], pts[i][j] / pts[i][3]);
+            bboxmax[j] = std::max(bboxmax[j], pts[i][j] / pts[i][3]);
         }
     }
 
-    // 使用 OpenMP 并行化循环，加速像素填充
-#pragma omp parallel for
-    for (int x = std::max(bboxmin[0], 0);
-         x <= std::min(bboxmax[0], image.width() - 1); x++) {
-        for (int y = std::max(bboxmin[1], 0);
-             y <= std::min(bboxmax[1], image.height() - 1); y++) {
-            // 计算当前像素 (x, y) 的重心坐标
-            vec3 bc_screen = barycentric(
-                pts2, {static_cast<double>(x), static_cast<double>(y)});
-            vec3 bc_clip = {bc_screen.x / pts[0][3], bc_screen.y / pts[1][3],
-                            bc_screen.z / pts[2][3]};
-            bc_clip =
-                bc_clip /
-                (bc_clip.x + bc_clip.y +
-                 bc_clip
-                     .z);  // 参考：https://github.com/ssloy/tinyrenderer/wiki/Technical-difficulties-linear-interpolation-with-perspective-deformations
-            // 计算片段的深度值
-            double frag_depth =
-                vec3{clip_verts[0][2], clip_verts[1][2], clip_verts[2][2]} *
-                bc_clip;
-            // 如果当前像素不在三角形内或被深度缓冲剔除，则跳过
-            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0 ||
-                frag_depth > zbuffer[x + y * image.width()])
+    Vec2i P;
+    TGAColor color;
+    // 遍历包围盒中的每个像素
+    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+            // 计算 P 点相对于三角形的重心坐标
+            Vec3f c = barycentric(proj<2>(pts[0] / pts[0][3]),
+                                  proj<2>(pts[1] / pts[1][3]),
+                                  proj<2>(pts[2] / pts[2][3]), proj<2>(P));
+            float z = pts[0][2] * c.x + pts[1][2] * c.y + pts[2][2] * c.z;
+            float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;
+            int frag_depth = z / w;
+            // 如果在三角形内且当前深度小于 zbuffer 的深度，则渲染
+            if (c.x < 0 || c.y < 0 || c.z < 0 ||
+                zbuffer[P.x + P.y * image.get_width()] > frag_depth)
                 continue;
-            TGAColor color;
-            // 调用片段着色器，如果片段被丢弃则跳过
-            if (shader.fragment(bc_clip, color))
-                continue;
-            // 更新深度缓冲区
-            zbuffer[x + y * image.width()] = frag_depth;
-            // 设置图像中 (x, y) 处的像素颜色
-            image.set(x, y, color);
+            bool discard = shader.fragment(c, color);
+            if (!discard) {
+                zbuffer[P.x + P.y * image.get_width()] = frag_depth;
+                image.set(P.x, P.y, color);
+            }
         }
     }
 }

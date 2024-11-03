@@ -1,102 +1,131 @@
 #include "model.h"
 
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
-// 构造函数，从文件加载模型数据
-Model::Model(const std::string filename) {
+// 构造函数，从文件中加载模型数据
+Model::Model(const char *filename)
+    : verts_(),
+      faces_(),
+      norms_(),
+      uv_(),
+      diffusemap_(),
+      normalmap_(),
+      specularmap_() {
     std::ifstream in;
-    in.open(filename, std::ifstream::in);  // 打开文件
+    in.open(filename, std::ifstream::in);
     if (in.fail())
-        return;  // 如果文件打开失败，直接返回
+        return;
     std::string line;
     while (!in.eof()) {
-        std::getline(in, line);  // 逐行读取文件
+        std::getline(in, line);
         std::istringstream iss(line.c_str());
         char trash;
-        if (!line.compare(0, 2, "v ")) {  // 处理顶点 "v " 行
+        if (!line.compare(0, 2, "v ")) {  // 读取顶点数据
             iss >> trash;
-            vec3 v;
+            Vec3f v;
             for (int i = 0; i < 3; i++) iss >> v[i];
-            verts.push_back(v);
-        } else if (!line.compare(0, 3, "vn ")) {  // 处理法线 "vn " 行
+            verts_.push_back(v);
+        } else if (!line.compare(0, 3, "vn ")) {  // 读取法线数据
             iss >> trash >> trash;
-            vec3 n;
+            Vec3f n;
             for (int i = 0; i < 3; i++) iss >> n[i];
-            norms.push_back(n.normalized());
-        } else if (!line.compare(0, 3, "vt ")) {  // 处理纹理坐标 "vt " 行
+            norms_.push_back(n);
+        } else if (!line.compare(0, 3, "vt ")) {  // 读取纹理坐标数据
             iss >> trash >> trash;
-            vec2 uv;
+            Vec2f uv;
             for (int i = 0; i < 2; i++) iss >> uv[i];
-            tex_coord.push_back({uv.x, 1 - uv.y});  // 将 v 坐标反转
-        } else if (!line.compare(0, 2, "f ")) {     // 处理面 "f " 行
-            int f, t, n;
+            uv_.push_back(uv);
+        } else if (!line.compare(0, 2, "f ")) {  // 读取面数据
+            std::vector<Vec3i> f;
+            Vec3i tmp;
             iss >> trash;
-            int cnt = 0;
-            while (iss >> f >> trash >> t >> trash >>
-                   n) {  // 逐个读取顶点、纹理和法线索引
-                facet_vrt.push_back(--f);
-                facet_tex.push_back(--t);
-                facet_nrm.push_back(--n);
-                cnt++;
+            while (iss >> tmp[0] >> trash >> tmp[1] >> trash >> tmp[2]) {
+                for (int i = 0; i < 3; i++)
+                    tmp[i]--;  // Wavefront OBJ 的索引从 1 开始，这里减 1
+                f.push_back(tmp);
             }
-            if (3 != cnt) {  // 确保面是三角形
-                std::cerr
-                    << "Error: the obj file is supposed to be triangulated"
-                    << std::endl;
-                return;
-            }
+            faces_.push_back(f);
         }
     }
-    // 输出加载信息
-    std::cerr << "# v# " << nverts() << " f# " << nfaces() << " vt# "
-              << tex_coord.size() << " vn# " << norms.size() << std::endl;
-    // 加载纹理
-    load_texture(filename, "_diffuse.tga", diffusemap);
-    load_texture(filename, "_nm_tangent.tga", normalmap);
-    load_texture(filename, "_spec.tga", specularmap);
+    std::cerr << "# 顶点数: " << verts_.size() << " 面数: " << faces_.size()
+              << " 纹理坐标数: " << uv_.size() << " 法线数: " << norms_.size()
+              << std::endl;
+    load_texture(filename, "_diffuse.tga", diffusemap_);  // 加载漫反射贴图
+    load_texture(filename, "_nm.tga", normalmap_);        // 加载法线贴图
+    load_texture(filename, "_spec.tga", specularmap_);    // 加载高光贴图
 }
+
+// 析构函数
+Model::~Model() {}
 
 // 返回顶点数量
-int Model::nverts() const { return verts.size(); }
+int Model::nverts() { return (int)verts_.size(); }
 
 // 返回面数量
-int Model::nfaces() const { return facet_vrt.size() / 3; }
+int Model::nfaces() { return (int)faces_.size(); }
 
-// 返回指定索引的顶点
-vec3 Model::vert(const int i) const { return verts[i]; }
-
-// 返回指定面的第 nth 个顶点位置
-vec3 Model::vert(const int iface, const int nthvert) const {
-    return verts[facet_vrt[iface * 3 + nthvert]];
+// 获取指定面中的顶点索引
+std::vector<int> Model::face(int idx) {
+    std::vector<int> face;
+    for (int i = 0; i < (int)faces_[idx].size(); i++)
+        face.push_back(faces_[idx][i][0]);
+    return face;
 }
 
-// 加载纹理图像
-void Model::load_texture(std::string filename, const std::string suffix,
+// 返回指定索引的顶点坐标
+Vec3f Model::vert(int i) { return verts_[i]; }
+
+// 获取指定面和顶点的坐标
+Vec3f Model::vert(int iface, int nthvert) {
+    return verts_[faces_[iface][nthvert][0]];
+}
+
+// 加载纹理文件，suffix 为文件后缀（如"_diffuse.tga"）
+void Model::load_texture(std::string filename, const char *suffix,
                          TGAImage &img) {
-    size_t dot = filename.find_last_of(".");
-    if (dot == std::string::npos)
-        return;  // 如果找不到文件后缀，直接返回
-    std::string texfile = filename.substr(0, dot) + suffix;
-    std::cerr << "texture file " << texfile << " loading "
-              << (img.read_tga_file(texfile.c_str()) ? "ok" : "failed")
-              << std::endl;
+    std::string texfile(filename);
+    size_t dot = texfile.find_last_of(".");
+    if (dot != std::string::npos) {
+        texfile = texfile.substr(0, dot) + std::string(suffix);
+        std::cerr << "纹理文件 " << texfile << " 加载 "
+                  << (img.read_tga_file(texfile.c_str()) ? "成功" : "失败")
+                  << std::endl;
+        img.flip_vertically();
+    }
 }
 
-// 从法线贴图中获取法线向量
-vec3 Model::normal(const vec2 &uvf) const {
-    TGAColor c =
-        normalmap.get(uvf[0] * normalmap.width(), uvf[1] * normalmap.height());
-    return vec3{(double)c[2], (double)c[1], (double)c[0]} * 2. / 255. -
-           vec3{1, 1, 1};  // 转换到 [-1, 1] 范围
+// 根据 UV 坐标获取漫反射颜色
+TGAColor Model::diffuse(Vec2f uvf) {
+    Vec2i uv(uvf[0] * diffusemap_.get_width(),
+             uvf[1] * diffusemap_.get_height());
+    return diffusemap_.get(uv[0], uv[1]);
 }
 
-// 返回指定面的第 nth 个顶点的纹理坐标
-vec2 Model::uv(const int iface, const int nthvert) const {
-    return tex_coord[facet_tex[iface * 3 + nthvert]];
+// 根据 UV 坐标获取法线
+Vec3f Model::normal(Vec2f uvf) {
+    Vec2i uv(uvf[0] * normalmap_.get_width(), uvf[1] * normalmap_.get_height());
+    TGAColor c = normalmap_.get(uv[0], uv[1]);
+    Vec3f res;
+    for (int i = 0; i < 3; i++) res[2 - i] = (float)c[i] / 255.f * 2.f - 1.f;
+    return res;
 }
 
-// 返回指定面的第 nth 个顶点的法线
-vec3 Model::normal(const int iface, const int nthvert) const {
-    return norms[facet_nrm[iface * 3 + nthvert]];
+// 获取指定面和顶点的 UV 坐标
+Vec2f Model::uv(int iface, int nthvert) {
+    return uv_[faces_[iface][nthvert][1]];
+}
+
+// 根据 UV 坐标获取高光强度
+float Model::specular(Vec2f uvf) {
+    Vec2i uv(uvf[0] * specularmap_.get_width(),
+             uvf[1] * specularmap_.get_height());
+    return specularmap_.get(uv[0], uv[1])[0] / 1.f;
+}
+
+// 获取指定面和顶点的法线
+Vec3f Model::normal(int iface, int nthvert) {
+    int idx = faces_[iface][nthvert][2];
+    return norms_[idx].normalize();
 }

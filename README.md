@@ -22,7 +22,7 @@
 - [x] Glulookat：实现模型的 MV 矩阵变换
 - [x] Phong shading：单独封装顶点着色器和片元着色器，利用法线、漫反射、高光贴图实现模型的 Phong shading
 - [x] Tangent space normal mapping: 实现切线空间下的法线映射
-- [ ] Shadow mapping: 实现阴影映射
+- [x] Shadow mapping: 实现Hard阴影映射
 
 ## 2. 项目架构
 
@@ -73,6 +73,8 @@
 <!-- ![z-buffer](showcase_images/z-buffer.png) -->
 
 ![Phong_Shading](showcase_images/Phong_Shading.png)
+
+![shadow_mapping](showcase_images/ShadowMap.png)
 
 ## 5. 构建与运行
 

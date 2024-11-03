@@ -1,26 +1,36 @@
+#ifndef __OUR_GL_H__
+#define __OUR_GL_H__
 #include "geometry.h"
 #include "tgaimage.h"
 
-// 定义视口矩阵，指定渲染图像在屏幕上的位置和尺寸
-void viewport(const int x, const int y, const int w, const int h);
+// 外部声明的全局矩阵，用于存储模型视图、视口和投影变换矩阵
+extern Matrix ModelView;
+extern Matrix Viewport;
+extern Matrix Projection;
+const float depth = 2000.f;  // 深度范围常量，用于深度缓冲区
 
-// 定义投影矩阵，用于将3D坐标投影到2D平面上
-void projection(const double coeff = 0);  // coeff = -1/c，其中 c 是相机距离
+// 设置视口矩阵，(x, y) 为视口左下角坐标，w 和 h 为视口宽度和高度
+void viewport(int x, int y, int w, int h);
 
-// 定义模型视图矩阵，用于从相机位置观察场景
-void lookat(const vec3 eye, const vec3 center, const vec3 up);
+// 设置投影矩阵，coeff 为投影参数（默认值为 0），通常用于透视投影
+// coeff = -1/c 表示远裁剪面的距离
+void projection(float coeff = 0.f);
 
-// 着色器接口类，提供片段着色器（fragment shader）的抽象接口
+// 设置视图矩阵，用于定义相机的位置和方向
+// eye 为相机位置，center 为观察目标点，up 为相机的上方向
+void lookat(Vec3f eye, Vec3f center, Vec3f up);
+
+// 着色器接口，用于实现顶点和片段着色器的多态接口
 struct IShader {
-    // 静态方法，用于从纹理中采样颜色
-    static TGAColor sample2D(const TGAImage &img, vec2 &uvf) {
-        return img.get(uvf[0] * img.width(),
-                       uvf[1] * img.height());  // 根据 uv 坐标获取纹理颜色
-    }
-    // 纯虚函数 fragment，需在子类中实现，用于计算每个片段的颜色
-    virtual bool fragment(const vec3 bar, TGAColor &color) = 0;
+    virtual ~IShader();  // 虚析构函数
+    // 顶点着色器接口，iface 为面索引，nthvert 为顶点索引，返回该顶点的坐标
+    virtual Vec4f vertex(int iface, int nthvert) = 0;
+    // 片段着色器接口，bar 为重心坐标，color 为输出的颜色值，返回是否丢弃该片段
+    virtual bool fragment(Vec3f bar, TGAColor &color) = 0;
 };
 
-// 渲染三角形，将三角形的每个像素逐个填充到图像中
-void triangle(const vec4 clip_verts[3], IShader &shader, TGAImage &image,
-              std::vector<double> &zbuffer);
+// 绘制三角形的函数，pts 是三角形的三个顶点，shader 为使用的着色器，
+// image 为输出图像，zbuffer 为深度缓冲区
+void triangle(Vec4f *pts, IShader &shader, TGAImage &image, float *zbuffer);
+
+#endif  // __OUR_GL_H__

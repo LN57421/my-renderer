@@ -1,176 +1,117 @@
-#include <cmath>
-#include <iostream>
 #include <limits>
-#include <vector>
 
-#include "geometry.h"
 #include "model.h"
-#include "tgaimage.h"
+#include "our_gl.h"
 
-const int width = 800;
-const int height = 800;
-const int depth = 255;
+// 输出图像尺寸
+constexpr int width = 800;
+constexpr int height = 800;
+// 光源方向
+constexpr vec3 light_dir{1, 1, 1};
+// 相机位置
+constexpr vec3 eye{1, 1, 3};
+// 相机观察的中心方向
+constexpr vec3 center{0, 0, 0};
+// 相机的上方向
+constexpr vec3 up{0, 1, 0};
 
-Model *model = NULL;
-int *zbuffer = NULL;
-Vec3f light_dir = Vec3f(1, -1, 1).normalize();
-Vec3f eye(1, 1, 3);
-Vec3f center(0, 0, 0);
+// 外部定义的“OpenGL”状态矩阵
+extern mat<4, 4> ModelView;
+extern mat<4, 4> Projection;
 
-Matrix viewport(int x, int y, int w, int h) {
-    Matrix m = Matrix::identity(4);
-    m[0][3] = x + w / 2.f;
-    m[1][3] = y + h / 2.f;
-    m[2][3] = depth / 2.f;
+// 着色器结构体，实现了 IShader 接口
+struct Shader : IShader {
+    const Model &model;  // 3D模型对象
+    vec3 uniform_l;      // 视图坐标系中的光源方向
+    mat<2, 3>
+        varying_uv;  // 三角形的纹理坐标，在顶点着色器中设置，在片段着色器中使用
+    mat<3, 3> varying_nrm;  // 每个顶点的法线，在片段着色器中插值使用
+    mat<3, 3> view_tri;     // 视图坐标系下的三角形顶点位置
 
-    m[0][0] = w / 2.f;
-    m[1][1] = h / 2.f;
-    m[2][2] = depth / 2.f;
-    return m;
-}
-
-Matrix lookat(Vec3f eye, Vec3f center, Vec3f up) {
-    Vec3f z = (eye - center).normalize();
-    Vec3f x = (up ^ z).normalize();
-    Vec3f y = (z ^ x).normalize();
-    Matrix res = Matrix::identity(4);
-    for (int i = 0; i < 3; i++) {
-        res[0][i] = x[i];
-        res[1][i] = y[i];
-        res[2][i] = z[i];
-        res[i][3] = -center[i];
-    }
-    return res;
-}
-
-void triangle(Vec3i t0, Vec3i t1, Vec3i t2, float ity0, float ity1, float ity2,
-              Vec2i uv0, Vec2i uv1, Vec2i uv2, TGAImage &image,
-              int *zbuffer) {
-    if (t0.y == t1.y && t0.y == t2.y)
-        return;  // i dont care about degenerate triangles
-    if (t0.y > t1.y) {
-        std::swap(t0, t1);
-        std::swap(ity0, ity1);
-    }
-    if (t0.y > t2.y) {
-        std::swap(t0, t2);
-        std::swap(ity0, ity2);
-    }
-    if (t1.y > t2.y) {
-        std::swap(t1, t2);
-        std::swap(ity1, ity2);
+    // 构造函数，传入模型对象
+    Shader(const Model &m) : model(m) {
+        // 将光源方向转换到视图坐标系
+        uniform_l = proj<3>((ModelView * embed<4>(light_dir, 0.))).normalized();
     }
 
-    int total_height = t2.y - t0.y;
-    for (int i = 0; i < total_height; i++) {
-        bool second_half = i > t1.y - t0.y || t1.y == t0.y;
-        int segment_height = second_half ? t2.y - t1.y : t1.y - t0.y;
-        float alpha = (float)i / total_height;
-        float beta = (float)(i - (second_half ? t1.y - t0.y : 0)) /
-                     segment_height;  // be careful: with above conditions no
-                                      // division by zero here
-        Vec3i A = t0 + Vec3f(t2 - t0) * alpha;
-        Vec3i B = second_half ? t1 + Vec3f(t2 - t1) * beta
-                              : t0 + Vec3f(t1 - t0) * beta;
-        float ityA = ity0 + (ity2 - ity0) * alpha;
-        float ityB = second_half ? ity1 + (ity2 - ity1) * beta
-                                 : ity0 + (ity1 - ity0) * beta;
-
-        Vec2i uvA = uv0 + (uv2 - uv0) * alpha;
-        Vec2i uvB =
-            second_half ? uv1 + (uv2 - uv1) * beta : uv0 + (uv1 - uv0) * beta;
-
-        if (A.x > B.x) {
-            std::swap(A, B);
-            std::swap(ityA, ityB);
-        }
-
-
-        for (int j = A.x; j <= B.x; j++) {
-            float phi = B.x == A.x ? 1. : (float)(j - A.x) / (B.x - A.x);
-            Vec3i P = Vec3f(A) + Vec3f(B - A) * phi;
-            Vec2i uvP = uvA + (uvB - uvA) * phi;
-
-            float ityP = ityA + (ityB - ityA) * phi;
-            int idx = P.x + P.y * width;
-
-            if (P.x >= width || P.y >= height || P.x < 0 || P.y < 0)
-                continue;
-            
-            if (zbuffer[idx] < P.z) {
-                zbuffer[idx] = P.z;
-                TGAColor color = model->diffuse(uvP);
-                image.set(P.x, P.y,
-                          TGAColor(color.bgra[2] * ityP, color.bgra[1] * ityP,
-                                   color.bgra[0] * ityP));
-            }
-        }
+    // 顶点着色器
+    virtual void vertex(const int iface, const int nthvert, vec4 &gl_Position) {
+        // 获取并设置三角形顶点的纹理坐标
+        varying_uv.set_col(nthvert, model.uv(iface, nthvert));
+        // 获取并设置三角形顶点的法线向量，转换到视图坐标系
+        varying_nrm.set_col(
+            nthvert, proj<3>((ModelView).invert_transpose() *
+                             embed<4>(model.normal(iface, nthvert), 0.)));
+        // 计算视图坐标下的顶点位置
+        gl_Position = ModelView * embed<4>(model.vert(iface, nthvert));
+        view_tri.set_col(nthvert, proj<3>(gl_Position));
+        // 应用投影矩阵，得到齐次裁剪坐标
+        gl_Position = Projection * gl_Position;
     }
-}
+
+    // 片段着色器
+    virtual bool fragment(const vec3 bar, TGAColor &gl_FragColor) {
+        // 通过重心坐标插值得到片段法线和纹理坐标
+        vec3 bn = (varying_nrm * bar).normalized();  // 插值得到片段法线
+        vec2 uv = varying_uv * bar;                  // 插值得到纹理坐标
+
+        // 计算切线空间的基底矩阵，用于法线映射
+        mat<3, 3> AI = mat<3, 3>{
+            {view_tri.col(1) - view_tri.col(0),
+             view_tri.col(2) - view_tri.col(0),
+             bn}}.invert();
+        vec3 i = AI * vec3{varying_uv[0][1] - varying_uv[0][0],
+                           varying_uv[0][2] - varying_uv[0][0], 0};
+        vec3 j = AI * vec3{varying_uv[1][1] - varying_uv[1][0],
+                           varying_uv[1][2] - varying_uv[1][0], 0};
+        mat<3, 3> B =
+            mat<3, 3>{{i.normalized(), j.normalized(), bn}}.transpose();
+
+        // 从法线贴图中获取法线，并将其从切线空间转换到视图空间
+        vec3 n = (B * model.normal(uv)).normalized();
+        // 计算漫反射强度，法线与光源方向的点积
+        double diff = std::max(0., n * uniform_l);
+        // 计算反射光方向，用于高光计算
+        vec3 r = (n * (n * uniform_l) * 2 - uniform_l).normalized();
+        // 计算高光强度，根据反射光方向和相机方向的夹角
+        double spec =
+            std::pow(std::max(-r.z, 0.), 5 + sample2D(model.specular(), uv)[0]);
+
+        // 从漫反射贴图中采样颜色
+        TGAColor c = sample2D(model.diffuse(), uv);
+        // 结合环境光、漫反射和高光，计算片段最终颜色
+        for (int i : {0, 1, 2})
+            gl_FragColor[i] = std::min<int>(10 + c[i] * (diff + spec),
+                                            255);  // 10 表示少量的环境光
+
+        return false;  // 返回 false 表示该片段不被丢弃
+    }
+};
 
 int main(int argc, char **argv) {
-    if (2 == argc) {
-        model = new Model(argv[1]);
-    } else {
-        model = new Model("obj/african_head.obj");
+    // 加载模型文件
+    Model model("obj/african_head/african_head.obj");
+
+    // 创建输出图像帧缓冲区
+    TGAImage framebuffer(width, height, TGAImage::RGB);
+    lookat(eye, center, up);  // 设置 ModelView 矩阵
+    viewport(width / 8, height / 8, width * 3 / 4,
+             height * 3 / 4);           // 设置 Viewport 矩阵
+    projection((eye - center).norm());  // 设置 Projection 矩阵
+    std::vector<double> zbuffer(
+        width * height, std::numeric_limits<double>::max());  // 初始化 Z 缓冲区
+
+    // 为模型的每个面（三角形）调用顶点和片段着色器进行渲染
+    Shader shader(model);                       // 创建着色器
+    for (int i = 0; i < model.nfaces(); i++) {  // 遍历每个三角形面
+        vec4 clip_vert[3];                      // 三角形顶点的齐次裁剪坐标
+        for (int j : {0, 1, 2})
+            shader.vertex(i, j, clip_vert[j]);  // 调用顶点着色器
+        triangle(clip_vert, shader, framebuffer,
+                 zbuffer);  // 调用三角形光栅化函数
     }
 
-    zbuffer = new int[width * height];
-    for (int i = 0; i < width * height; i++) {
-        zbuffer[i] = std::numeric_limits<int>::min();
-    }
-
-    {  // draw the model
-        Matrix ModelView = lookat(eye, center, Vec3f(0, 1, 0));
-        Matrix Projection = Matrix::identity(4);
-        Matrix ViewPort =
-            viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
-        Projection[3][2] = -1.f / (eye - center).norm();
-
-        std::cerr << ModelView << std::endl;
-        std::cerr << Projection << std::endl;
-        std::cerr << ViewPort << std::endl;
-        Matrix z = (ViewPort * Projection * ModelView);
-        std::cerr << z << std::endl;
-
-        TGAImage image(width, height, TGAImage::RGB);
-        for (int i = 0; i < model->nfaces(); i++) {
-            std::vector<int> face = model->face(i);
-            Vec3i screen_coords[3];
-            Vec3f world_coords[3];
-            float intensity[3];
-            for (int j = 0; j < 3; j++) {
-                Vec3f v = model->vert(face[j]);
-                screen_coords[j] =
-                    Vec3f(ViewPort * Projection * ModelView * Matrix(v));
-                world_coords[j] = v;
-                intensity[j] = std::max(0.f, model->norm(i, j) * light_dir); // the 0 is a hack
-            }
-            Vec2i uv[3];
-            for (int k = 0; k < 3; k++) {
-                uv[k] = model->uv(i, k);
-            }
-            triangle(screen_coords[0], screen_coords[1], screen_coords[2],
-                     intensity[0], intensity[1], intensity[2], uv[0], uv[1],
-                     uv[2], image, zbuffer);
-        }
-        image.flip_vertically();  // i want to have the origin at the left
-                                  // bottom corner of the image
-        image.write_tga_file("output.tga");
-    }
-
-    {  // dump z-buffer (debugging purposes only)
-        TGAImage zbimage(width, height, TGAImage::GRAYSCALE);
-        for (int i = 0; i < width; i++) {
-            for (int j = 0; j < height; j++) {
-                zbimage.set(i, j, TGAColor(zbuffer[i + j * width]));
-            }
-        }
-        zbimage.flip_vertically();  // i want to have the origin at the left
-                                    // bottom corner of the image
-        zbimage.write_tga_file("zbuffer.tga");
-    }
-    delete model;
-    delete[] zbuffer;
+    // 将帧缓冲区中的图像写入文件
+    framebuffer.write_tga_file("framebuffer.tga");
     return 0;
 }

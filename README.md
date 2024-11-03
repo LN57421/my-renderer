@@ -7,17 +7,18 @@
 ## 1. 项目特征
 
 - [x] Bresenham画线算法：利用画点API，采用Bresenham画线算法，画出直线
-- [x] wireframe-drawing：实现OBJ模型数据读取，画出模型线框 
-- [x] trangile-drawing：利用画线API，利用线性插值因子，实现画实心三角形
+- [x] Wireframe-drawing：实现OBJ模型数据读取，画出模型线框 
+- [x] Trangile-drawing：利用画线API，利用线性插值因子，实现画实心三角形
 - [x] Lambertian漫反射：实现Lambertian漫反射用于光照计算
-- [x] backface culling：根据数据画出模型三角形面，并剔除背面三角形
-- [x] z-buffer：计算像素深度缓冲, 实现z-testing
-- [x] barycentric: 质心计算, 用于后续实现三角形内光照，纹理插值 （颜色，法向量，深度插值）
-- [x] perspective projection：透视投影，实现模型的透视投影
-- [x] texture-mapping：实现模型的纹理映射
-- [x] Shading：实现模型的flat shading; Gouraud shading
-- [x] glulookat：实现模型的MV矩阵变换
-- [ ] Phong shading：单独封装顶点着色器和片元着色器，实现模型的Phong shading
+- [x] Backface culling：根据数据画出模型三角形面，并剔除背面三角形
+- [x] Z-buffer：计算像素深度缓冲, 实现Z-testing
+- [x] Barycentric: 质心计算, 用于后续实现三角形内光照，纹理插值等
+- [x] Perspective projection：透视投影，实现模型的透视投影
+- [x] Texture-mapping：实现模型的纹理映射
+- [x] Flat Shading：实现模型的Flat shading 
+- [x] Gouraud shading：实现模型的Gouraud shading
+- [x] Glulookat：实现模型的MV矩阵变换
+- [x] Phong shading：单独封装顶点着色器和片元着色器，利用ShadowMap实现模型的Phong shading
 
 
 ## 2. 项目架构
@@ -31,11 +32,10 @@
 ### obj
 - `african_head_diffuse.tga`: 非洲人头像模型的漫反射贴图，用于提供基础颜色信息。
 - `african_head_nm.tga`: 法线贴图，提供模型表面的法线信息，增强光照效果。
-- `african_head_read_me.txt`: 说明文件，可能包含模型使用的详细信息。
+- `african_head_read_me.txt`: 说明文件，包含模型使用的详细信息。
 - `african_head_spec.tga`: 高光贴图，定义模型表面反射高光的区域。
 - `african_head_SSS.jpg`: 次表面散射（SSS）纹理，模仿光线穿透表面的散射效果。
 - `african_head.obj`: 非洲人头像的3D模型文件，包含几何数据。
-- `cube.obj`: 立方体的3D模型文件，通常用于简单的渲染测试或调试。
 
 ### output
 项目的输出文件目录，通常存放编译后的可执行文件和其他生成的资源。
@@ -61,9 +61,11 @@
 
 ## 4. 项目效果
 
-![Gouraud_Shading_Texture](showcase_images/Gouraud_Shading_Texture.png)
+<!-- ![Gouraud_Shading_Texture](showcase_images/Gouraud_Shading_Texture.png) -->
 
-![z-buffer](showcase_images/z-buffer.png)
+<!-- ![z-buffer](showcase_images/z-buffer.png) -->
+
+![Phong_Shading](showcase_images/Phong_Shading.png)
 
 
 ## 5. 构建与运行

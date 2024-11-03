@@ -2,7 +2,9 @@
 
 ## 0. 项目简介
 
-此项目为加深对于OpenGL等图形学API底层渲染理解。这是一个由C++实现的仿openGL的**零依赖软渲染器**，零依赖代表项目不依赖任何第三方库，软渲染代表所有的计算都是在CPU侧进行
+此项目为加深对于OpenGL等图形学API底层渲染理解。这是一个由C++实现的仿openGL的**零依赖软渲染器**，零依赖代表项目不依赖任何第三方库，软渲染代表所有的计算都是在CPU侧进行。
+
+项目开发环境：Windows 11 + VSCode + MinGW-w64 + CMake（Windows 11配置MinGW-w64见文档末尾）
 
 ## 1. 项目特征
 
@@ -18,8 +20,9 @@
 - [x] Flat Shading：实现模型的Flat shading 
 - [x] Gouraud shading：实现模型的Gouraud shading
 - [x] Glulookat：实现模型的MV矩阵变换
-- [x] Phong shading：单独封装顶点着色器和片元着色器，利用ShadowMap实现模型的Phong shading
-
+- [x] Phong shading：单独封装顶点着色器和片元着色器，利用法线、漫反射、高光贴图实现模型的Phong shading
+- [ ] Tangent space normal mapping: 实现切线空间下的法线映射
+- [ ] Shadow mapping: 实现阴影映射
 
 ## 2. 项目架构
 

@@ -53,8 +53,13 @@ struct Shader : public IShader {
                      embed<4>(varying_tri * bar);  // 阴影缓冲区中的对应点
         sb_p = sb_p / sb_p[3];
         int idx = int(sb_p[0]) + int(sb_p[1]) * width;  // 阴影缓冲区数组索引
-        float shadow = .3 + .7 * (shadowbuffer[idx] < sb_p[2]);  // 阴影系数，避免 Z buffer
-        Vec2f uv = varying_uv * bar;                  // 当前像素的 UV 插值
+        //  在计算 shadow 系数时增加一个深度偏移量
+        float bias = 43.34;  // 偏移量大小可以调整，根据场景和视角需要微调
+                             // 阴影系数，避免 Z fighting
+        float shadow =
+            .3 + .7 * (shadowbuffer[idx] < (sb_p[2] + bias));  // 加入偏移量
+
+        Vec2f uv = varying_uv * bar;  // 当前像素的 UV 插值
         Vec3f n = proj<3>(uniform_MIT * embed<4>(model->normal(uv)))
                       .normalize();  // 法线
         Vec3f l =
@@ -65,7 +70,7 @@ struct Shader : public IShader {
         TGAColor c = model->diffuse(uv);
         for (int i = 0; i < 3; i++)
             color[i] = std::min<float>(
-                20 + c[i] * shadow * (1.2 * diff + .6 * spec), 255);
+                20 + c[i] * shadow * (1.6 * diff + .6 * spec), 255);
         return false;
     }
 };
